@@ -1,4 +1,4 @@
-name: Build app
+name: Build app  # signed builds use SIGNING_SEED
 
 # Every push to android/ builds a new APK and publishes it under Releases.
 # Installed apps see the new release and show the "Update ready" popup.
