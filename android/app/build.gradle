@@ -1,0 +1,57 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Optional per-client build: gradle assembleRelease -PappLink=https://...exec?id=CODE -PappName="Jules Tracker"
+def appLink = project.findProperty('appLink') ?: ''
+def appName = project.findProperty('appName') ?: 'Diet Tracker'
+def buildNumber = (System.getenv('GITHUB_RUN_NUMBER') ?: '1') as int
+def signStore = System.getenv('SIGN_STORE')   // set by the workflow from the SIGNING_SEED secret
+
+android {
+    namespace 'com.armon.diettracker'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.armon.diettracker'
+        minSdk 26
+        targetSdk 34
+        versionCode buildNumber
+        versionName "1.0." + buildNumber
+        buildConfigField 'String', 'DEFAULT_LINK', '"' + appLink.replace('"', '') + '"'
+        buildConfigField 'boolean', 'STABLE_KEY', (signStore ? 'true' : 'false')
+        resValue 'string', 'app_name', appName
+    }
+
+    signingConfigs {
+        if (signStore) {
+            permanent {
+                storeFile file(signStore)
+                storeType 'pkcs12'
+                storePassword System.getenv('SIGN_PASS')
+                keyAlias 'diettracker'
+                keyPassword System.getenv('SIGN_PASS')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signStore ? signingConfigs.permanent : signingConfigs.debug
+        }
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core:1.13.1'
+}

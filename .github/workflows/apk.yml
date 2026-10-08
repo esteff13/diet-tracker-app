@@ -1,0 +1,62 @@
+name: Build app
+
+# Every push to android/ builds a new APK and publishes it under Releases.
+# Installed apps see the new release and show the "Update ready" popup.
+on:
+  push:
+    branches: [main]
+    paths: ['android/**', 'tools/**', '.github/workflows/apk.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    env:
+      HAS_SEED: ${{ secrets.SIGNING_SEED != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Rebuild the permanent signing key from SIGNING_SEED
+        if: env.HAS_SEED == 'true'
+        env:
+          SIGNING_SEED: ${{ secrets.SIGNING_SEED }}
+        run: |
+          pip install -q pycryptodome==3.20.0 cryptography==42.0.8
+          PASS=$(printf '%s' "$SIGNING_SEED" | sha256sum | cut -c1-32)
+          echo "::add-mask::$PASS"
+          SIGN_PASS="$PASS" python tools/make_key.py "$RUNNER_TEMP/sign.p12"
+          echo "SIGN_STORE=$RUNNER_TEMP/sign.p12" >> "$GITHUB_ENV"
+          echo "SIGN_PASS=$PASS" >> "$GITHUB_ENV"
+
+      - name: Build APK
+        run: |
+          gradle -p android assembleRelease --no-daemon
+          cp android/app/build/outputs/apk/release/app-release.apk DietTracker.apk
+          rm -f "$RUNNER_TEMP/sign.p12"
+
+      - name: Publish
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Diet Tracker (build ${{ github.run_number }})${{ env.HAS_SEED != 'true' && ' TEST' || '' }}
+          body: ${{ github.event.head_commit.message || 'New version' }}
+          files: DietTracker.apk
+          # Test builds (no SIGNING_SEED yet) can't update in place, so they never become "latest".
+          prerelease: ${{ env.HAS_SEED != 'true' }}
+          make_latest: ${{ env.HAS_SEED == 'true' && 'true' || 'false' }}

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Diet Tracker</title>
+<meta name="theme-color" content="#0B1220">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Diet Tracker">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-180.png">
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #0B1220; color: #e2e8f0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  iframe { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; }
+  .screen { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 24px 16px; box-sizing: border-box; text-align: center; }
+  .card { max-width: 380px; width: 100%; }
+  .orb { width: 72px; height: 72px; border-radius: 22px; margin: 0 auto 18px; display: block; }
+  h1 { font-size: 24px; margin: 0 0 8px; }
+  p { color: #94a3b8; line-height: 1.55; margin: 0 0 22px; font-size: 15px; }
+  .btn { display: block; width: 100%; box-sizing: border-box; padding: 15px 18px; border-radius: 16px; font-size: 16px; font-weight: 700; text-decoration: none; margin-bottom: 12px; border: 0; cursor: pointer; }
+  .btn.main { background: #38bdf8; color: #04131d; }
+  .btn.soft { background: #1e293b; color: #e2e8f0; }
+  .steps { text-align: left; background: #111a2e; border-radius: 16px; padding: 14px 16px; margin: 4px 0 18px; font-size: 14px; color: #94a3b8; line-height: 1.6; }
+  .steps b { color: #e2e8f0; }
+  .small { font-size: 13px; color: #64748b; }
+  .small a { color: #94a3b8; }
+  .tip { position: fixed; left: 12px; right: 12px; bottom: calc(14px + env(safe-area-inset-bottom)); z-index: 5; background: #1e293b; color: #e2e8f0; border-radius: 16px; padding: 12px 44px 12px 14px; font-size: 14px; line-height: 1.45; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
+  .tip button { position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; border-radius: 50%; border: 0; background: #0B1220; color: #94a3b8; font-size: 18px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  // Shared Diet Tracker web app. Each client's code (?id=...) picks their own Sheet.
+  var EXEC = 'https://script.google.com/macros/s/AKfycbx5PJGv0YFlTcxA7xWD7jxInKOFGKXkkC1XBgDPKMMRzpwsoTrWlmxXRsnMgRzqHC5qrQ/exec';
+  var APK = 'https://github.com/esteff13/diet-tracker-app/releases/latest/download/DietTracker.apk';
+
+  var params = new URLSearchParams(location.search);
+  var id = (params.get('id') || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 40);
+  var ua = navigator.userAgent;
+  var isAndroid = /Android/i.test(ua);
+  var isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var standalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+  var root = document.getElementById('root');
+
+  // Remember the code so a home-screen icon saved without ?id still opens the right tracker.
+  try { if (id) localStorage.setItem('dt_id', id); else id = localStorage.getItem('dt_id') || ''; } catch (e) {}
+
+  function frameApp() {
+    document.body.style.overflow = 'hidden';
+    root.innerHTML = '<iframe src="' + EXEC + '?id=' + id + '" allow="camera; clipboard-read; clipboard-write"></iframe>';
+    if (isIOS && !standalone && !seen('dt_ios_tip')) {
+      var t = document.createElement('div');
+      t.className = 'tip';
+      t.innerHTML = 'Make it an app: tap <b>Share</b> ↑ then <b>Add to Home Screen</b>.<button aria-label="Close">×</button>';
+      t.querySelector('button').onclick = function () { t.remove(); mark('dt_ios_tip'); };
+      document.body.appendChild(t);
+    }
+  }
+  function seen(k) { try { return !!localStorage.getItem(k); } catch (e) { return false; } }
+  function mark(k) { try { localStorage.setItem(k, '1'); } catch (e) {} }
+
+  function androidScreen() {
+    var intent = 'intent://open?id=' + id + '#Intent;scheme=diettracker;package=com.armon.diettracker;' +
+      'S.browser_fallback_url=' + encodeURIComponent(APK) + ';end';
+    root.innerHTML =
+      '<div class="screen"><div class="card">' +
+        '<img class="orb" src="icon-180.png" alt="">' +
+        '<h1>Your Diet Tracker</h1>' +
+        '<p>Tap the button. If the app isn’t installed yet, it downloads first.</p>' +
+        '<a class="btn main" href="' + intent + '">Open my tracker</a>' +
+        '<div class="steps"><b>First time?</b><br>1. Tap <b>Open my tracker</b>, the app downloads.<br>' +
+          '2. Open the download and tap <b>Install</b> (allow it if Android asks).<br>' +
+          '3. Come back here and tap <b>Open my tracker</b> again. Done, it remembers you.</div>' +
+        '<div class="small"><a href="#" id="web">Use it in the browser instead</a></div>' +
+      '</div></div>';
+    document.getElementById('web').onclick = function (e) { e.preventDefault(); frameApp(); };
+  }
+
+  function noCodeScreen() {
+    root.innerHTML =
+      '<div class="screen"><div class="card">' +
+        '<img class="orb" src="icon-180.png" alt="">' +
+        '<h1>Diet Tracker</h1>' +
+        '<p>Open the link from your welcome message to get to your own tracker.</p>' +
+        (isAndroid ? '<a class="btn soft" href="' + APK + '">Download the Android app</a>' : '') +
+      '</div></div>';
+  }
+
+  if (!id) noCodeScreen();
+  else if (isAndroid && params.get('web') !== '1') androidScreen();
+  else frameApp();
+</script>
+</body>
+</html>
