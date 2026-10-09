@@ -96,7 +96,7 @@ public class MainActivity extends Activity {
             public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
                 if (pendingFiles != null) pendingFiles.onReceiveValue(null);
                 pendingFiles = callback;
-                return openPhotoPicker();
+                return openPhotoPicker(params != null && params.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE);
             }
         });
 
@@ -325,10 +325,11 @@ public class MainActivity extends Activity {
 
     /* ---------- camera / gallery for the photo buttons ---------- */
 
-    private boolean openPhotoPicker() {
+    private boolean openPhotoPicker(boolean multiple) {
         Intent gallery = new Intent(Intent.ACTION_GET_CONTENT);
         gallery.addCategory(Intent.CATEGORY_OPENABLE);
         gallery.setType("image/*");
+        if (multiple) gallery.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);   // pick several meal photos at once
 
         Intent chooser = Intent.createChooser(gallery, "Add a food photo");
         cameraUri = null;
@@ -360,7 +361,12 @@ public class MainActivity extends Activity {
         if (requestCode != REQ_FILE || pendingFiles == null) return;
         Uri[] result = null;
         if (resultCode == RESULT_OK) {
-            if (data != null && data.getData() != null) result = new Uri[]{ data.getData() };
+            if (data != null && data.getClipData() != null && data.getClipData().getItemCount() > 0) {
+                int n = Math.min(data.getClipData().getItemCount(), 4);
+                result = new Uri[n];
+                for (int i = 0; i < n; i++) result[i] = data.getClipData().getItemAt(i).getUri();
+            }
+            else if (data != null && data.getData() != null) result = new Uri[]{ data.getData() };
             else if (cameraUri != null) result = new Uri[]{ cameraUri };
         }
         pendingFiles.onReceiveValue(result);
